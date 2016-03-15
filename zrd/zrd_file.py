@@ -17,8 +17,7 @@ class ZRDFile(object):
         :param filename:
         :return:
         """
-        if enable_SQL:
-            self.session, self.engine = sql.db.initialize_database(verbose=verbose_SQL)
+        self.session, self.engine = sql.db.initialize_database(verbose=verbose_SQL) if enable_SQL else (None, None)
 
         self.filename = filename
 
@@ -36,39 +35,38 @@ class ZRDFile(object):
             self.max_segments, = struct.unpack('<L', self.mm[4:8])
             file_index = 8
 
+            rays = []
+            segments = []
+
             ray_index = 0
             while True:
                 if file_index+4 > len(self.mm):
                     break
-                #ray = sql.elements.Ray()
 
                 num_segments, = struct.unpack('<L', self.mm[file_index:file_index+4])
                 file_index += 4
 
-                segments = [{'parent':ray_index, 'segment_number':segnum} for segnum in xrange(num_segments)]
+                rays += [{'file_index':file_index}]
+
+                new_segments = [{'parent':ray_index, 'segment_number':segnum} for segnum in xrange(num_segments)]
                 for n in xrange(num_segments):
                     chunk = self.decode_chunk(file_index)
 
-                    segments[n]['file_index'] = file_index
-                    #ray.segments.append(segment)
+                    bytecode = self.read_parameter(chunk['bytecode'], file_index)
+                    new_segments[n].update({'file_index':file_index, 'bytecode':bytecode})
 
-                    if (self.read_parameter(chunk['bytecode'], file_index) & 0x1000) == 0 \
-                            and self.read_parameter(chunk['hit_surface'], file_index) > 0:
+                    if (bytecode & 0x1000) == 0 and self.read_parameter(chunk['hit_surface'], file_index) > 0:
                         file_index += 1 # Deal with the presence of the wavenumber entry
                     file_index += chunk['chunk_length']
-
-                if enable_SQL:
-                    #self.engine.execute(sql.elements.Ray.__table__.insert(), {})
-                    self.engine.execute(sql.elements.Segment.__table__.insert(), segments)
+                segments += new_segments
 
                 ray_index += 1
 
-            """
             if enable_SQL:
-                #self.session.add(ray)
-                #self.session.
-                self.session.commit()
-            """
+                conn = self.engine.connect()
+                conn.execute(sql.elements.Ray.__table__.insert(), rays)
+                conn.execute(sql.elements.Segment.__table__.insert(), segments)
+                conn.close()
 
     def decode_chunk(self, file_index):
         bytecode, = struct.unpack('<H', self.mm[file_index:file_index+2])

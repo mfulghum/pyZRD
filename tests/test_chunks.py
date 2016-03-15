@@ -34,6 +34,10 @@ class TestChunkTyping(unittest.TestCase):
         # Check that the UFD chunks are exactly 208 bytes long
         self.assertEqual(chunk['chunk_length'], 208)
 
+        # Check that it properly raises an exception if we try to grab a nonexistent property
+        with self.assertRaises(chunks.base_chunk.ChunkException):
+            result = chunk['nonsense']
+
     def test_CFD_chunking(self):
         """
         Generate a few different CFD chunk types and make sure they don't do anything unexpected
@@ -70,6 +74,10 @@ class TestChunkTyping(unittest.TestCase):
         # Check that the new chunk is *not* a reference to the first chunk
         self.assertIsNot(chunk3, chunk)
 
+        # Check that it properly raises an exception if we try to grab a nonexistent property
+        with self.assertRaises(chunks.base_chunk.ChunkException):
+            result = chunk['nonsense']
+
     def test_CBD_chunking(self):
         """
         Generate a few different CBD chunk types and make sure they don't do anything unexpected
@@ -77,3 +85,6 @@ class TestChunkTyping(unittest.TestCase):
         """
         chunks.cbd_chunk.CBDChunk._chunk_objects = {}
         self.assertEqual(chunks.cbd_chunk.CBDChunk._chunk_objects, {})
+
+        with self.assertRaises(chunks.base_chunk.ChunkException):
+            chunk = chunks.cbd_chunk.CBDChunk()

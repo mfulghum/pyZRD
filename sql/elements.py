@@ -20,13 +20,15 @@ class Ray(Base):
     id = Column(Integer, primary_key=True, nullable=False)
     segments = relationship('Segment', back_populates='ray', order_by='Segment.segment_number', collection_class=ordering_list('segment_number'))
 
+    file_index = Column(Integer) # Position (in bytes) in the ZRD file of the first segment
+
 class Segment(Base):
     __tablename__ = 'segments'
 
     id = Column(Integer, primary_key=True, nullable=False)
     parent = Column(Integer, ForeignKey('rays.id'))
-    segment_number = Column(Integer)
     ray = relationship('Ray', back_populates='segments')
+    segment_number = Column(Integer)
 
-    # Position (in bytes) in the ZRD file of the segment
-    file_index = Column(Integer)
+    file_index = Column(Integer) # Position (in bytes) in the ZRD file of the segment
+    bytecode = Column(Integer) # Chunk bytecode
