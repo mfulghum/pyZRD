@@ -8,7 +8,7 @@ Revision history:
 """
 
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy import Column, Integer, ForeignKey
+from sqlalchemy import Column, Integer, Binary, ForeignKey
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.orderinglist import ordering_list
 
@@ -32,3 +32,4 @@ class Segment(Base):
 
     file_index = Column(Integer) # Position (in bytes) in the ZRD file of the segment
     bytecode = Column(Integer) # Chunk bytecode
+    data = Column(Binary) # Chunk data

@@ -59,6 +59,13 @@ class BaseChunk(object):
         except Exception as ex:
             raise ChunkException('Missing chunk parameter %s' % ex)
 
+    def keys(self):
+        """
+        Return valid chunk parameter names
+        :return:
+        """
+        return self._chunk_format.keys()
+
     def _generate_chunk_type(self, bytecode=None):
         """
         Generates the chunk type formatting for a given bytecode.
