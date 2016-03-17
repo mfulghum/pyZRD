@@ -2,7 +2,7 @@ import struct
 import mmap
 
 import sql.db
-from sql.elements import Ray, Segment
+from sql.elements import Ray, Segment, Chunk
 
 # Import the different kinds of chunks
 import chunks.ufd_chunk
@@ -53,16 +53,16 @@ class ZRDFile(object):
 
             new_segments = [{'parent':ray_index, 'segment_number':segnum} for segnum in xrange(num_segments)]
             for n in xrange(num_segments):
+                new_segments[n]['file_index'] = file_index
                 chunk = self.decode_chunk(file_index)
                 new_segments[n]['data'] = self.data[file_index:file_index+chunk['chunk_length']]
-
-                new_segments[n]['file_index'] = file_index
-                new_segments[n]['bytecode'] = self.read_parameter(chunk['bytecode'], new_segments[n]['data'])
 
                 #chunk_keys = segment_keys & set(chunk.keys()) - {'wavenumber'}
                 #new_segments[n].update({key:self.read_parameter(chunk[key], file_index) for key in (segment_keys & chunk_keys)})
 
-                if (new_segments[n]['bytecode'] & 0x1000) == 0 and self.read_parameter(chunk['hit_surface'], new_segments[n]['data']) > 0:
+                new_segments[n]['bytecode'] = self.read_parameter(chunk['bytecode'], new_segments[n]['data'])
+                if (new_segments[n]['bytecode'] & 0x1000) == 0 and \
+                                self.read_parameter(chunk['hit_surface'], new_segments[n]['data']) > 0:
                     file_index += 1 # Deal with the presence of the wavenumber entry
                 file_index += chunk['chunk_length']
             segments += new_segments
@@ -74,6 +74,10 @@ class ZRDFile(object):
             conn.execute(Ray.__table__.insert(), rays)
             conn.execute(Segment.__table__.insert(), segments)
             conn.close()
+
+            for bytecode in self.chunk_type._chunk_objects:
+                self.session.add(Chunk(bytecode=bytecode, offsets=self.chunk_type._chunk_objects[bytecode]))
+            self.session.commit()
         else:
             self.ray_elements = rays
             self.segment_elements = segments
@@ -85,6 +89,10 @@ class ZRDFile(object):
     @property
     def segments(self):
         return self.session.query(Segment) if self._SQL else self.segment_elements
+
+    @property
+    def chunks(self):
+        return self.session.query(Chunk) if self._SQL else self.chunk_type._chunk_objects
 
     def decode_chunk(self, file_index):
         bytecode, = struct.unpack('<H', self.data[file_index:file_index+2])

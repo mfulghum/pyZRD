@@ -34,7 +34,7 @@ class TestZRDLoad(unittest.TestCase):
         self.assertIsNotNone(db.session)
 
         # Check that the chunk bytecodes stored in the session are identical to those found in the file
-        session_chunk_types = [query[0] for query in db.session.query(Segment.bytecode).all()]
+        session_chunk_types = [segment.bytecode for segment in db.segments]
         self.assertItemsEqual(chunk_types, session_chunk_types)
 
         # Check that the chunk data is identical between the two loads
