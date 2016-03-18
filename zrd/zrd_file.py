@@ -55,14 +55,18 @@ class ZRDFile(object):
             for n in xrange(num_segments):
                 new_segments[n]['file_index'] = file_index
                 chunk = self.decode_chunk(file_index)
-                new_segments[n]['data'] = self.data[file_index:file_index+chunk['chunk_length']]
+                data = self.data[file_index:file_index+chunk['chunk_length']]
+                new_segments[n]['data'] = data
 
                 #chunk_keys = segment_keys & set(chunk.keys()) - {'wavenumber'}
                 #new_segments[n].update({key:self.read_parameter(chunk[key], file_index) for key in (segment_keys & chunk_keys)})
 
-                new_segments[n]['bytecode'] = self.read_parameter(chunk['bytecode'], new_segments[n]['data'])
+                #new_segments[n].update({key:self.read_parameter(chunk[key], data) for key in chunk.keys()
+                #                        if key not in ['chunk_length', 'wavenumber']})
+
+                new_segments[n]['bytecode'] = self.read_parameter(chunk['bytecode'], data)
                 if (new_segments[n]['bytecode'] & 0x1000) == 0 and \
-                                self.read_parameter(chunk['hit_surface'], new_segments[n]['data']) > 0:
+                                self.read_parameter(chunk['hit_surface'], data) > 0:
                     file_index += 1 # Deal with the presence of the wavenumber entry
                 file_index += chunk['chunk_length']
             segments += new_segments
@@ -75,6 +79,7 @@ class ZRDFile(object):
             conn.execute(Segment.__table__.insert(), segments)
             conn.close()
 
+            """
             for bytecode in self.chunk_type._chunk_objects:
                 chunk_type = self.chunk_type._chunk_objects[bytecode]
                 chunk_data = {key:chunk_type[key][0] for key in chunk_type.keys()
@@ -83,6 +88,7 @@ class ZRDFile(object):
                                    if key not in ['chunk_length', 'bytecode']})
                 self.session.add(Chunk(bytecode=bytecode, **chunk_data))
             self.session.commit()
+            """
         else:
             self.ray_elements = rays
             self.segment_elements = segments

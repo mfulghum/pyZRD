@@ -40,11 +40,15 @@ class Segment(Base):
     chunk = relationship('Chunk', foreign_keys=[bytecode])
     data = Column(Binary) # Chunk data
 
+    status = Column(Integer)
+    hit_surface = Column(Integer)
+    hit_face = Column(Integer)
+    inside = Column(Integer)
+
     """
     @hybrid_property
     def bytecode(self):
         return struct.unpack('<H', self.data[0:2])[0]
-    """
 
     @hybrid_property
     def status(self):
@@ -65,6 +69,7 @@ class Segment(Base):
     @hit_surface.expression
     def hit_surface(cls):
         return select([func.substr(cls.data, Chunk.hit_surface, Chunk.len_hit_surface)]).where(Chunk.bytecode==cls.bytecode)
+    """
 
 
 class Chunk(Base):
