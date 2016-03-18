@@ -11,14 +11,14 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from elements import Base
 
-def initialize_database(verbose=True):
+def initialize_database(verbose=True, filename=None):
     """
     Start the SQLAlchemy engine (using sqlite in memory for speed).
     Verbose flag shows *all* SQL commands being passed to the database.
     :param verbose:
     :return:
     """
-    engine = create_engine('sqlite:///:memory:', echo=verbose)
+    engine = create_engine('sqlite:///' + (filename or ':memory:'), echo=verbose)
     Base.metadata.create_all(engine)
 
     Session = sessionmaker()

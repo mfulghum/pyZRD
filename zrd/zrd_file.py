@@ -10,7 +10,7 @@ import chunks.cbd_chunk
 import chunks.cfd_chunk
 
 class ZRDFile(object):
-    def __init__(self, filename, enable_SQL=True, verbose_SQL=False):
+    def __init__(self, filename, enable_SQL=True, verbose_SQL=False, sql_filename=None):
         """
         Load a ZRD file into memory
 
@@ -18,7 +18,7 @@ class ZRDFile(object):
         :return:
         """
         self._SQL = enable_SQL
-        self.session, self.engine = sql.db.initialize_database(verbose=verbose_SQL) if enable_SQL else (None, None)
+        self.session, self.engine = sql.db.initialize_database(verbose=verbose_SQL, filename=sql_filename) if enable_SQL else (None, None)
 
         self.filename = filename
 
@@ -76,7 +76,12 @@ class ZRDFile(object):
             conn.close()
 
             for bytecode in self.chunk_type._chunk_objects:
-                self.session.add(Chunk(bytecode=bytecode, offsets=self.chunk_type._chunk_objects[bytecode]))
+                chunk_type = self.chunk_type._chunk_objects[bytecode]
+                chunk_data = {key:chunk_type[key][0] for key in chunk_type.keys()
+                              if key not in ['chunk_length', 'bytecode']}
+                chunk_data.update({'len_'+key:struct.calcsize(chunk_type[key][1]) for key in chunk_type.keys()
+                                   if key not in ['chunk_length', 'bytecode']})
+                self.session.add(Chunk(bytecode=bytecode, **chunk_data))
             self.session.commit()
         else:
             self.ray_elements = rays
