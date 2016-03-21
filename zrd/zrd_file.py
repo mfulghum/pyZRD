@@ -79,16 +79,16 @@ class ZRDFile(object):
             conn.execute(Segment.__table__.insert(), segments)
             conn.close()
 
-            """
             for bytecode in self.chunk_type._chunk_objects:
                 chunk_type = self.chunk_type._chunk_objects[bytecode]
                 chunk_data = {key:chunk_type[key][0] for key in chunk_type.keys()
                               if key not in ['chunk_length', 'bytecode']}
                 chunk_data.update({'len_'+key:struct.calcsize(chunk_type[key][1]) for key in chunk_type.keys()
                                    if key not in ['chunk_length', 'bytecode']})
+                chunk_data.update({'format_'+key:chunk_type[key][1] for key in chunk_type.keys()
+                                   if key not in ['chunk_length', 'bytecode']})
                 self.session.add(Chunk(bytecode=bytecode, **chunk_data))
             self.session.commit()
-            """
         else:
             self.ray_elements = rays
             self.segment_elements = segments

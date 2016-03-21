@@ -11,7 +11,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import Column, Integer, Binary, Text, String, ForeignKey
 from sqlalchemy.orm import relationship, object_session
 from sqlalchemy.ext.orderinglist import ordering_list
-from sqlalchemy.ext.hybrid import hybrid_property
+from sqlalchemy.ext.hybrid import Comparator, hybrid_property
 from sqlalchemy.types import PickleType
 from sqlalchemy import select, func
 
@@ -40,26 +40,38 @@ class Segment(Base):
     chunk = relationship('Chunk', foreign_keys=[bytecode])
     data = Column(Binary) # Chunk data
 
+    """
     status = Column(Integer)
     hit_surface = Column(Integer)
     hit_face = Column(Integer)
     inside = Column(Integer)
+    """
 
     """
     @hybrid_property
     def bytecode(self):
         return struct.unpack('<H', self.data[0:2])[0]
-
+    """
     @hybrid_property
     def status(self):
-        chunk_offset = object_session(self).query(Chunk.offsets).filter(Chunk.bytecode == self.bytecode).scalar()['status']
-        data = struct.unpack(chunk_offset[1], self.data[chunk_offset[0]:chunk_offset[0] + struct.calcsize(chunk_offset[1])])
-        return data[0] if len(data) == 1 else list(data)
+        #db.session.query(Chunk.status, Chunk.len_status, Chunk.format_status).filter(Chunk.bytecode==0).first()
+        #chunk_data = object_session(self).query(Chunk.offsets).filter(Chunk.bytecode == self.bytecode).scalar()['status']
+        #print(self.bytecode)
+        chunk_data = object_session(self).query(Chunk.status, Chunk.len_status, Chunk.format_status).filter(Chunk.bytecode==self.bytecode).first()
+        return struct.unpack(chunk_data[2], self.data[chunk_data[0]:chunk_data[0] + chunk_data[1]])[0]
 
+    class StatusComparator(Comparator):
+        def __eq__(self, other):
+            return self.__clause_element__() == other
+
+    """
     @status.expression
     def status(cls):
-        return select([func.hex(func.substr(Segment.data, Chunk.status, Chunk.len_status))]).where(Chunk.bytecode==Segment.bytecode)
+        #return select([func.hex(func.substr(Segment.data, Chunk.status, Chunk.len_status))]).where(Chunk.bytecode==Segment.bytecode)
+        return select([func.substr(Segment.data, Chunk.status, Chunk.len_status)]).where(Chunk.bytecode==Segment.bytecode)
+    """
 
+    """
     @hybrid_property
     def hit_surface(self):
         chunk_offset = object_session(self).query(Chunk.offsets).filter(Chunk.bytecode == self.bytecode).scalar()['hit_surface']
@@ -115,3 +127,22 @@ class Chunk(Base):
     len_cosines = Column(Integer)
     len_normal = Column(Integer)
     len_wavenumber = Column(Integer)
+
+    format_status = Column(String)
+    format_hit_surface = Column(String)
+    format_hit_face = Column(String)
+    format_parent = Column(String)
+    format_inside = Column(String)
+    format_paramA = Column(String)
+    format_paramB = Column(String)
+    format_starting_phase = Column(String)
+    format_phase_of = Column(String)
+    format_phase_at = Column(String)
+    format_polarization = Column(String)
+    format_index = Column(String)
+    format_path_to = Column(String)
+    format_position = Column(String)
+    format_intensity = Column(String)
+    format_cosines = Column(String)
+    format_normal = Column(String)
+    format_wavenumber = Column(String)
