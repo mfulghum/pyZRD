@@ -93,17 +93,22 @@ class ZRDFile(object):
             self.ray_elements = rays
             self.segment_elements = segments
 
+    """
     @property
     def rays(self):
         return self.session.query(Ray) if self._SQL else self.ray_elements
+    """
 
     @property
     def segments(self):
-        return self.session.query(Segment) if self._SQL else self.segment_elements
+        return self.session.query(Segment).join(Chunk, Chunk.bytecode==Segment.bytecode) if self._SQL else self.segment_elements
+        #db.session.query(Segment.segment_number, func.cast(func.substr(Segment.data, Chunk.status+literal_column('1'), Chunk.len_status), Binary(Chunk.len_status))).join(Chunk, Chunk.bytecode==Segment.bytecode).all()
 
+    """
     @property
     def chunks(self):
         return self.session.query(Chunk) if self._SQL else self.chunk_type._chunk_objects
+    """
 
     def decode_chunk(self, file_index):
         bytecode, = struct.unpack('<H', self.data[file_index:file_index+2])

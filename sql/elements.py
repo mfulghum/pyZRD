@@ -13,7 +13,11 @@ from sqlalchemy.orm import relationship, object_session
 from sqlalchemy.ext.orderinglist import ordering_list
 from sqlalchemy.ext.hybrid import Comparator, hybrid_property
 from sqlalchemy.types import PickleType
+from sqlalchemy.sql.expression import literal_column
 from sqlalchemy import select, func
+import sqlalchemy.sql
+import sqlalchemy
+import numpy as np
 
 import struct
 
@@ -54,22 +58,33 @@ class Segment(Base):
     """
     @hybrid_property
     def status(self):
-        #db.session.query(Chunk.status, Chunk.len_status, Chunk.format_status).filter(Chunk.bytecode==0).first()
-        #chunk_data = object_session(self).query(Chunk.offsets).filter(Chunk.bytecode == self.bytecode).scalar()['status']
-        #print(self.bytecode)
         chunk_data = object_session(self).query(Chunk.status, Chunk.len_status, Chunk.format_status).filter(Chunk.bytecode==self.bytecode).first()
         return struct.unpack(chunk_data[2], self.data[chunk_data[0]:chunk_data[0] + chunk_data[1]])[0]
 
-    class StatusComparator(Comparator):
-        def __eq__(self, other):
-            return self.__clause_element__() == other
-
     """
+    import zrd.zrd_file
+    from sql.elements import *
+    db = zrd.zrd_file.ZRDFile('tests/grating.ZRD', enable_SQL=True, verbose_SQL=True)
+    """
+
+    class StatusComparator(Comparator):
+        def __and__(self, other):
+            return (self.__clause_element__() & struct.pack('<H', other)) != literal_column('0')
+
+        def __eq__(self, other):
+            return self.__clause_element__() == struct.pack('<H', other)
+
     @status.expression
     def status(cls):
         #return select([func.hex(func.substr(Segment.data, Chunk.status, Chunk.len_status))]).where(Chunk.bytecode==Segment.bytecode)
-        return select([func.substr(Segment.data, Chunk.status, Chunk.len_status)]).where(Chunk.bytecode==Segment.bytecode)
-    """
+        return select([func.cast(func.substr(Segment.data, Chunk.status+literal_column('1'), Chunk.len_status), Binary)])\
+            .where(Chunk.bytecode==Segment.bytecode).where(Segment.id==cls.id)
+
+    @status.comparator
+    def status(cls):
+        data = select([func.cast(func.substr(Segment.data, Chunk.status+literal_column('1'), Chunk.len_status), Binary)])\
+                    .where(Chunk.bytecode==Segment.bytecode).as_scalar()
+        return cls.StatusComparator(data)
 
     """
     @hybrid_property
