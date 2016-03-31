@@ -8,6 +8,7 @@ Revision history:
 import base_chunk
 import struct
 import numpy as np
+from collections import namedtuple
 
 class CFDChunk(base_chunk.BaseChunk):
     """
@@ -15,10 +16,11 @@ class CFDChunk(base_chunk.BaseChunk):
     """
     __metaclass__ = base_chunk.MetaChunk
 
+
+
     def _generate_chunk_type(self, bytecode):
         """
-        Generate the unique chunk type for UFD files. Not *really* necessary to do this but it leads to a cleaner
-        implementation for handling all the different types of ZRD files.
+        Generate chunk types for CFD files.
         :param bytecode:
         :return:
         """
@@ -28,64 +30,66 @@ class CFDChunk(base_chunk.BaseChunk):
         chunk_format = {}
         index = 0
 
-        chunk_format['bytecode'] = (index, '<H', np.uint16)
-        index += struct.calcsize(chunk_format['bytecode'][1])
+        field_names = []
+        field_packing = '<'
 
-        chunk_format['status'] = (index, '<L', np.uint32) if (bytecode & 0x0001) > 0 else (index, '<H', np.uint16) # status
-        index += struct.calcsize(chunk_format['status'][1])
+        chunk_data = [chunk_format, index, field_names, field_packing]
 
-        chunk_format['hit_surface'] = (index, '<h', np.int16) if (bytecode & 0x0002) > 0 else (index, '<b', np.int8) # hit surface
-        index += struct.calcsize(chunk_format['hit_surface'][1])
+        def add_parameter(chunk_data, parameter_name, packing):
+            param_type = {'L':np.uint32, 'l':np.int32,
+                          'H': np.uint16, 'h': np.int16,
+                          'B':np.uint8, 'b':np.int8,
+                          'd':np.float64, 'f':np.float32,
+                          '0s':None}
+            chunk_data[0][parameter_name] = (chunk_data[1], packing, param_type[packing])
+            chunk_data[1] += struct.calcsize(chunk_format[parameter_name][1])
+            chunk_data[2].append(parameter_name)
+            chunk_data[3] += chunk_format[parameter_name][1]
 
-        chunk_format['hit_face'] = (index, '<h', np.int16) if (bytecode & 0x0004) > 0 else (index, '<b', np.int8) # hit face
-        index += struct.calcsize(chunk_format['hit_face'][1])
+        add_parameter(chunk_data, 'bytecode', 'H')
+        add_parameter(chunk_data, 'status', 'L' if (bytecode & 0x0001) > 0 else 'H')
+        add_parameter(chunk_data, 'hit_surface', 'h' if (bytecode & 0x0002) > 0 else 'b')
+        add_parameter(chunk_data, 'hit_face', 'h' if (bytecode & 0x0004) > 0 else 'b')
+        add_parameter(chunk_data, 'parent', 'h' if (bytecode & 0x0008) > 0 else 'b')
+        add_parameter(chunk_data, 'inside', 'h' if (bytecode & 0x0010) > 0 else 'b')
+        add_parameter(chunk_data, 'paramA', 'L' if (bytecode & 0x0020) > 0 else '0s')
+        add_parameter(chunk_data, 'paramB', 'L' if (bytecode & 0x0040) > 0 else '0s')
+        add_parameter(chunk_data, 'starting_phase', 'f' if (bytecode & 0x0080) > 0 else '0s')
+        add_parameter(chunk_data, 'phase_of', 'f' if (bytecode & 0x0100) > 0 else '0s')
+        add_parameter(chunk_data, 'phase_at', 'f' if (bytecode & 0x0200) > 0 else '0s')
 
-        chunk_format['parent'] = (index, '<h', np.int16) if (bytecode & 0x0008) > 0 else (index, '<b', np.int8) # parent
-        index += struct.calcsize(chunk_format['parent'][1])
+        add_parameter(chunk_data, 'Exr', 'f' if (bytecode & 0x0400) > 0 else '0s')
+        add_parameter(chunk_data, 'Exi', 'f' if (bytecode & 0x0400) > 0 else '0s')
+        add_parameter(chunk_data, 'Eyr', 'f' if (bytecode & 0x0400) > 0 else '0s')
+        add_parameter(chunk_data, 'Eyi', 'f' if (bytecode & 0x0400) > 0 else '0s')
+        add_parameter(chunk_data, 'Ezr', 'f' if (bytecode & 0x0400) > 0 else '0s')
+        add_parameter(chunk_data, 'Ezi', 'f' if (bytecode & 0x0400) > 0 else '0s')
 
-        chunk_format['inside'] = (index, '<h', np.int16) if (bytecode & 0x0010) > 0 else (index, '<b', np.int8) # inside
-        index += struct.calcsize(chunk_format['inside'][1])
+        add_parameter(chunk_data, 'index', 'f' if (bytecode & 0x0800) > 0 else '0s')
+        add_parameter(chunk_data, 'path_to', 'f' if (bytecode & 0x1000) > 0 else '0s')
 
-        chunk_format['paramA'] = (index, '<L', np.uint32) if ((bytecode & 0x0020) > 0) else (0, '', None)
-        index += struct.calcsize(chunk_format['paramA'][1])
+        add_parameter(chunk_data, 'x', 'f')
+        add_parameter(chunk_data, 'y', 'f')
+        add_parameter(chunk_data, 'z', 'f')
 
-        chunk_format['paramB'] = (index, '<L', np.uint32) if ((bytecode & 0x0040) > 0) else (0, '', None)
-        index += struct.calcsize(chunk_format['paramB'][1])
+        add_parameter(chunk_data, 'intensity', 'f')
 
-        chunk_format['starting_phase'] = (index, '<f', np.float32) if ((bytecode & 0x0080) > 0) else (0, '', None)
-        index += struct.calcsize(chunk_format['starting_phase'][1])
+        add_parameter(chunk_data, 'u', 'f')
+        add_parameter(chunk_data, 'v', 'f')
+        add_parameter(chunk_data, 'w', 'f')
 
-        chunk_format['phase_of'] = (index, '<f', np.float32) if ((bytecode & 0x0100) > 0) else (0, '', None) # Untested!!! I have not yet encountered this bit in a ZRD file
-        index += struct.calcsize(chunk_format['phase_of'][1])
-
-        chunk_format['phase_at'] = (index, '<f', np.float32) if ((bytecode & 0x0200) > 0) else (0, '', None)
-        index += struct.calcsize(chunk_format['phase_at'][1])
-
-        chunk_format['polarization'] = (index, '<ffffff') if ((bytecode & 0x0400) > 0) else (0, '', None)
-        index += struct.calcsize(chunk_format['polarization'][1])
-
-        chunk_format['index'] = (index, '<f', np.float32) if ((bytecode & 0x0800) > 0) else (0, '', None)
-        index += struct.calcsize(chunk_format['index'][1])
-
-        chunk_format['path_to'] = (index, '<f', np.float32) if ((bytecode & 0x1000) > 0) else (0, '', None)
-        index += struct.calcsize(chunk_format['path_to'][1])
-
-        chunk_format['position'] = (index, '<fff', np.array)
-        index += struct.calcsize(chunk_format['position'][1])
-
-        chunk_format['intensity'] = (index, '<f', np.float32)
-        index += struct.calcsize(chunk_format['intensity'][1])
-
-        chunk_format['cosines'] = (index, '<fff', np.array)
-        index += struct.calcsize(chunk_format['cosines'][1])
-
-        chunk_format['normal'] = (index, '<fff', np.array)
-        index += struct.calcsize(chunk_format['normal'][1])
+        add_parameter(chunk_data, 'nx', 'f')
+        add_parameter(chunk_data, 'ny', 'f')
+        add_parameter(chunk_data, 'nz', 'f')
 
         # Note that wavenumber also only pops up if hit_surface > 0 and (bytecode & 0x1000) == 0, but we can't check
         # for that here.
-        chunk_format['wavenumber'] = (index, '<B', np.uint8)
+        add_parameter(chunk_data, 'wavenumber', '0s')
 
-        chunk_format['chunk_length'] = sum([struct.calcsize(chunk_format[key][1]) for key in chunk_format.keys()])-1
-        assert(index == chunk_format['chunk_length']) # Sanity check the length
-        return chunk_format
+        chunk_format, index, field_names, field_packing = chunk_data
+        index -= 1
+
+        chunk_length = sum([struct.calcsize(chunk_format[key][1]) for key in chunk_format.keys()])-1
+        assert(index == chunk_length) # Sanity check the length
+
+        return (field_names, field_packing)

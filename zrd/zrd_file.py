@@ -2,7 +2,7 @@ import struct
 import mmap
 
 import sql.db
-from sql.elements import Ray, Segment, Chunk
+from sql.elements import Ray, Segment
 
 # Import the different kinds of chunks
 import chunks.ufd_chunk
@@ -39,8 +39,6 @@ class ZRDFile(object):
         rays = []
         segments = []
 
-        segment_keys = set(Segment.__table__.columns.keys()) - {'id', 'parent', 'file_index', 'segment_number'}
-
         ray_index = 0
         while True:
             if file_index+4 > len(self.data):
@@ -50,25 +48,29 @@ class ZRDFile(object):
             file_index += 4
 
             rays += [{'file_index':file_index}]
+            segment_wavenumber = 0
 
             new_segments = [{'parent':ray_index, 'segment_number':segnum} for segnum in xrange(num_segments)]
             for n in xrange(num_segments):
                 new_segments[n]['file_index'] = file_index
-                chunk = self.decode_chunk(file_index)
-                data = self.data[file_index:file_index+chunk['chunk_length']]
-                new_segments[n]['data'] = data
+                chunk_fields, chunk_packing = self.decode_chunk(file_index)
+                chunk_length = struct.calcsize(chunk_packing)
 
-                #chunk_keys = segment_keys & set(chunk.keys()) - {'wavenumber'}
-                #new_segments[n].update({key:self.read_parameter(chunk[key], file_index) for key in (segment_keys & chunk_keys)})
+                data = self.data[file_index:file_index+chunk_length]
+                file_index += chunk_length
 
-                #new_segments[n].update({key:self.read_parameter(chunk[key], data) for key in chunk.keys()
-                #                        if key not in ['chunk_length', 'wavenumber']})
+                segment_data = dict(zip(chunk_fields, struct.unpack(chunk_packing, data)))
+                for key,value in segment_data.items():
+                    if value == '':
+                        segment_data[key] = None
 
-                new_segments[n]['bytecode'] = self.read_parameter(chunk['bytecode'], data)
-                if (new_segments[n]['bytecode'] & 0x1000) == 0 and \
-                                self.read_parameter(chunk['hit_surface'], data) > 0:
+                if (segment_data['bytecode'] & 0x1000) == 0 and \
+                        segment_data['hit_surface'] > 0:
+                    segment_wavenumber, = struct.unpack('<B', self.data[file_index:file_index+1])
                     file_index += 1 # Deal with the presence of the wavenumber entry
-                file_index += chunk['chunk_length']
+
+                segment_data['wavenumber'] = segment_wavenumber
+                new_segments[n].update(segment_data)
             segments += new_segments
 
             ray_index += 1
@@ -78,41 +80,23 @@ class ZRDFile(object):
             conn.execute(Ray.__table__.insert(), rays)
             conn.execute(Segment.__table__.insert(), segments)
             conn.close()
-
-            for bytecode in self.chunk_type._chunk_objects:
-                chunk_type = self.chunk_type._chunk_objects[bytecode]
-                chunk_data = {key:chunk_type[key][0] for key in chunk_type.keys()
-                              if key not in ['chunk_length', 'bytecode']}
-                chunk_data.update({'len_'+key:struct.calcsize(chunk_type[key][1]) for key in chunk_type.keys()
-                                   if key not in ['chunk_length', 'bytecode']})
-                chunk_data.update({'format_'+key:chunk_type[key][1] for key in chunk_type.keys()
-                                   if key not in ['chunk_length', 'bytecode']})
-                self.session.add(Chunk(bytecode=bytecode, **chunk_data))
             self.session.commit()
         else:
             self.ray_elements = rays
             self.segment_elements = segments
 
-    """
     @property
     def rays(self):
         return self.session.query(Ray) if self._SQL else self.ray_elements
-    """
 
     @property
     def segments(self):
-        return self.session.query(Segment).join(Chunk, Chunk.bytecode==Segment.bytecode) if self._SQL else self.segment_elements
-        #db.session.query(Segment.segment_number, func.cast(func.substr(Segment.data, Chunk.status+literal_column('1'), Chunk.len_status), Binary(Chunk.len_status))).join(Chunk, Chunk.bytecode==Segment.bytecode).all()
-
-    """
-    @property
-    def chunks(self):
-        return self.session.query(Chunk) if self._SQL else self.chunk_type._chunk_objects
-    """
+        return self.session.query(Segment) if self._SQL else self.segment_elements
 
     def decode_chunk(self, file_index):
         bytecode, = struct.unpack('<H', self.data[file_index:file_index+2])
-        return self.chunk_type(bytecode)
+        chunk = self.chunk_type(bytecode)
+        return chunk[0], chunk[1]
 
     def read_parameter(self, parameter, chunk_data):
         if parameter[1] is '':

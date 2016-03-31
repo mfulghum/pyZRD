@@ -24,8 +24,6 @@ class TestZRDLoad(unittest.TestCase):
         chunk_types = db.chunk_type._chunk_objects.keys()
         self.assertEquals(chunk_types, [2048, 6656])
 
-        chunk_data = db.segments[0]['data']
-
         # Now load the database with SQL enabled
         db = zrd.zrd_file.ZRDFile('tests/basic.ZRD', enable_SQL=True, verbose_SQL=True)
 
@@ -36,7 +34,4 @@ class TestZRDLoad(unittest.TestCase):
         # Check that the chunk bytecodes stored in the session are identical to those found in the file
         session_chunk_types = [segment.bytecode for segment in db.segments]
         self.assertItemsEqual(chunk_types, session_chunk_types)
-
-        # Check that the chunk data is identical between the two loads
-        self.assertItemsEqual(chunk_data, db.segments[0].data)
 

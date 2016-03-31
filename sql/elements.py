@@ -8,18 +8,9 @@ Revision history:
 """
 
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy import Column, Integer, Binary, Text, String, ForeignKey
-from sqlalchemy.orm import relationship, object_session
+from sqlalchemy import Column, Integer, Float, ForeignKey
+from sqlalchemy.orm import relationship
 from sqlalchemy.ext.orderinglist import ordering_list
-from sqlalchemy.ext.hybrid import Comparator, hybrid_property
-from sqlalchemy.types import PickleType
-from sqlalchemy.sql.expression import literal_column
-from sqlalchemy import select, func
-import sqlalchemy.sql
-import sqlalchemy
-import numpy as np
-
-import struct
 
 Base = declarative_base()
 
@@ -40,124 +31,40 @@ class Segment(Base):
     ray = relationship('Ray', back_populates='segments')
 
     file_index = Column(Integer) # Position (in bytes) in the ZRD file of the segment
-    bytecode = Column(Integer, ForeignKey('chunks.bytecode')) # Chunk bytecode
-    chunk = relationship('Chunk', foreign_keys=[bytecode])
-    data = Column(Binary) # Chunk data
-
-    """
+    bytecode = Column(Integer)
     status = Column(Integer)
     hit_surface = Column(Integer)
     hit_face = Column(Integer)
-    inside = Column(Integer)
-    """
-
-    """
-    @hybrid_property
-    def bytecode(self):
-        return struct.unpack('<H', self.data[0:2])[0]
-    """
-    @hybrid_property
-    def status(self):
-        chunk_data = object_session(self).query(Chunk.status, Chunk.len_status, Chunk.format_status).filter(Chunk.bytecode==self.bytecode).first()
-        return struct.unpack(chunk_data[2], self.data[chunk_data[0]:chunk_data[0] + chunk_data[1]])[0]
-
-    """
-    import zrd.zrd_file
-    from sql.elements import *
-    db = zrd.zrd_file.ZRDFile('tests/grating.ZRD', enable_SQL=True, verbose_SQL=True)
-    """
-
-    class StatusComparator(Comparator):
-        def __and__(self, other):
-            return (self.__clause_element__() & struct.pack('<H', other)) != literal_column('0')
-
-        def __eq__(self, other):
-            return self.__clause_element__() == struct.pack('<H', other)
-
-    @status.expression
-    def status(cls):
-        #return select([func.hex(func.substr(Segment.data, Chunk.status, Chunk.len_status))]).where(Chunk.bytecode==Segment.bytecode)
-        return select([func.cast(func.substr(Segment.data, Chunk.status+literal_column('1'), Chunk.len_status), Binary)])\
-            .where(Chunk.bytecode==Segment.bytecode).where(Segment.id==cls.id)
-
-    @status.comparator
-    def status(cls):
-        data = select([func.cast(func.substr(Segment.data, Chunk.status+literal_column('1'), Chunk.len_status), Binary)])\
-                    .where(Chunk.bytecode==Segment.bytecode).as_scalar()
-        return cls.StatusComparator(data)
-
-    """
-    @hybrid_property
-    def hit_surface(self):
-        chunk_offset = object_session(self).query(Chunk.offsets).filter(Chunk.bytecode == self.bytecode).scalar()['hit_surface']
-        data = struct.unpack(chunk_offset[1], self.data[chunk_offset[0]:chunk_offset[0] + struct.calcsize(chunk_offset[1])])
-        return data[0] if len(data) == 1 else list(data)
-
-    @hit_surface.expression
-    def hit_surface(cls):
-        return select([func.substr(cls.data, Chunk.hit_surface, Chunk.len_hit_surface)]).where(Chunk.bytecode==cls.bytecode)
-    """
-
-
-class Chunk(Base):
-    __tablename__ = 'chunks'
-
-    bytecode = Column(Integer, primary_key=True)
-    offsets = Column(PickleType)
-
-    status = Column(Integer)
-    hit_surface = Column(Integer)
-    hit_face = Column(Integer)
-    parent = Column(Integer)
     inside = Column(Integer)
     paramA = Column(Integer)
     paramB = Column(Integer)
-    starting_phase = Column(Integer)
-    phase_of = Column(Integer)
-    phase_at = Column(Integer)
-    polarization = Column(Integer)
-    index = Column(Integer)
-    path_to = Column(Integer)
-    position = Column(Integer)
-    intensity = Column(Integer)
-    cosines = Column(Integer)
-    normal = Column(Integer)
+
+    starting_phase = Column(Float)
+    phase_of = Column(Float)
+    phase_at = Column(Float)
+
+    Exr = Column(Float)
+    Exi = Column(Float)
+    Eyr = Column(Float)
+    Eyi = Column(Float)
+    Ezr = Column(Float)
+    Ezi = Column(Float)
+
+    index = Column(Float)
+    path_to = Column(Float)
+
+    x = Column(Float)
+    y = Column(Float)
+    z = Column(Float)
+
+    intensity = Column(Float)
+
+    u = Column(Float)
+    v = Column(Float)
+    w = Column(Float)
+
+    nx = Column(Float)
+    ny = Column(Float)
+    nz = Column(Float)
+
     wavenumber = Column(Integer)
-
-    len_status = Column(Integer)
-    len_hit_surface = Column(Integer)
-    len_hit_face = Column(Integer)
-    len_parent = Column(Integer)
-    len_inside = Column(Integer)
-    len_paramA = Column(Integer)
-    len_paramB = Column(Integer)
-    len_starting_phase = Column(Integer)
-    len_phase_of = Column(Integer)
-    len_phase_at = Column(Integer)
-    len_polarization = Column(Integer)
-    len_index = Column(Integer)
-    len_path_to = Column(Integer)
-    len_position = Column(Integer)
-    len_intensity = Column(Integer)
-    len_cosines = Column(Integer)
-    len_normal = Column(Integer)
-    len_wavenumber = Column(Integer)
-
-    format_status = Column(String)
-    format_hit_surface = Column(String)
-    format_hit_face = Column(String)
-    format_parent = Column(String)
-    format_inside = Column(String)
-    format_paramA = Column(String)
-    format_paramB = Column(String)
-    format_starting_phase = Column(String)
-    format_phase_of = Column(String)
-    format_phase_at = Column(String)
-    format_polarization = Column(String)
-    format_index = Column(String)
-    format_path_to = Column(String)
-    format_position = Column(String)
-    format_intensity = Column(String)
-    format_cosines = Column(String)
-    format_normal = Column(String)
-    format_wavenumber = Column(String)
